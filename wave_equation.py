@@ -15,8 +15,8 @@ class WaveEquation(object):
             wave_numbers -= s * (2*wave_numbers > s)  # Deal with TensorFlow's uncentered FFT
             expected_span = 2*np.pi
             actual_span = s*dx
-            omega.insert(0, wave_numbers * expected_span / actual_span)
-        self.omega = np.meshgrid(*omega)
+            omega.append(wave_numbers * expected_span / actual_span)
+        self.omega = np.meshgrid(*omega, indexing='ij')
         self.dims = len(boundary.shape)
 
         if self.dims == 1:
@@ -24,35 +24,45 @@ class WaveEquation(object):
             self.ifft = tf.signal.ifft
             self.omega_x = self.omega[0]
             omega2 = tf.constant(self.omega_x**2, 'complex128')
-            gyre = 1j * omega2**(0.5 + dispersion)
-            dampener = -decay * omega2**(1.0 - brightness)
-            self.positive_gyre = tf.exp(dt * (gyre + dampener))
-            self.negative_gyre = tf.exp(dt * (-gyre + dampener))
+        elif self.dims == 2:
+            self.fft = tf.signal.fft2d
+            self.ifft = tf.signal.ifft2d
+            self.omega_x = self.omega[0]
+            self.omega_y = self.omega[1]
+            omega2 = tf.constant(self.omega_x**2 + self.omega_y**2, 'complex128')
+        elif self.dims == 3:
+            self.fft = tf.signal.fft3d
+            self.ifft = tf.signal.ifft3d
+            self.omega_x = self.omega[0]
+            self.omega_y = self.omega[1]
+            self.omega_z = self.omega[2]
+            omega2 = tf.constant(self.omega_x**2 + self.omega_y**2 + self.omega_z**2, 'complex128')
+        gyre = 1j * omega2**(0.5 + dispersion)
+        dampener = -decay * omega2**(1.0 - brightness)
+        self.kernel = tf.exp(dt * (gyre + dampener))
 
         self.t = 0.0
         u = tf.constant(exitation, 'complex128')
         self.boundary = tf.constant(boundary, 'complex128')
-        self.positive_v = self.fft(u) * 0.5
-        self.negative_v = self.fft(u) * 0.5
+        self.room = tf.cast(1 - tf.abs(self.boundary), 'complex128')
+        self.v = self.fft(u)
 
-        def integrator(positive_v, negative_v):
-            positive_v *= self.positive_gyre
-            negative_v *= self.negative_gyre
-            positive_u = self.ifft(positive_v)
-            negative_u = self.ifft(negative_v)
+        def integrator(v):
+            v *= self.kernel
 
-            room = tf.cast(1 - tf.abs(self.boundary), 'complex128')
-            positive_v = self.fft(positive_u * room - negative_u * self.boundary)
-            negative_v = self.fft(negative_u * room - positive_u * self.boundary)
+            positive_u = self.ifft(v)
+            negative_u = tf.math.conj(positive_u)
 
-            return positive_v, negative_v
+            v = self.fft(positive_u * self.room - negative_u * self.boundary)
+
+            return v
 
         self.integrator = tf.function(integrator)
 
 
     def step(self):
-        self.positive_v, self.negative_v = self.integrator(self.positive_v, self.negative_v)
+        self.v = self.integrator(self.v)
         self.t += self.dt
 
     def numpy(self):
-        return tf.cast(self.ifft(self.positive_v + self.negative_v), 'float64').numpy()
+        return tf.cast(self.ifft(self.v), 'float64').numpy()
