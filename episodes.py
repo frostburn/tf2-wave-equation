@@ -107,20 +107,22 @@ def animated_point_source_in_room():
     r1 = 20*r-15
     u = -(np.exp(-r1**2) + 2j/np.sqrt(np.pi)*dawsn(r1)) / (r+1)
 
-    plots = pylab.plot(np.real(u[M,M]))
-    plots.extend(pylab.plot(np.imag(u[M,M])))
-    pylab.show()
-
     boundary = 0*x
 
     wave_equation = WaveEquation(u, boundary, dx, dt=dx, decay=0)
 
-    plots = [pylab.imshow(wave_equation.numpy()[:,:,M], vmin=-0.05, vmax=0.05)]
+    u = wave_equation.ifft(wave_equation.v)[:,:,M]
+    plots = [pylab.imshow(np.real(u), vmin=-0.05, vmax=0.05, extent=(-2, 2,-2,2))]
+    plots.extend(pylab.plot(np.linspace(-2,2,N), np.real(u[M])))
+    plots.extend(pylab.plot(np.linspace(-2,2,N), np.imag(u[M])))
 
     def update(frame):
         wave_equation.step()
         print(wave_equation.t)
-        plots[0].set_data(wave_equation.numpy()[:,:,M])
+        u = wave_equation.ifft(wave_equation.v)[:,:,M]
+        plots[0].set_data(np.real(u))
+        plots[1].set_ydata(np.real(u[M]))
+        plots[2].set_ydata(np.imag(u[M]))
         return plots
 
     FuncAnimation(pylab.gcf(), update, frames=range(18), init_func=lambda: plots, blit=True, repeat=True, interval=20)
@@ -160,9 +162,81 @@ def animated_point_source_on_string():
     pylab.show()
 
 
+def room_reverb(animate=False):
+    from scipy.special import dawsn
+    N = 256
+    x = np.linspace(-2, 2, N+1)[:-1] + 0j
+    dx = np.real(x[1]-x[0])
+    M = N//2
+    L = M//2
+    y = (np.arange(M)-L)*dx
+    z = (np.arange(M)-L)*dx
+    x, y, z = np.meshgrid(x, y, z, indexing='ij')
+
+    # Inwards surging spherical wave with a gaussian profile
+    # TODO: Figure out how to do an actual point source
+    r = np.sqrt((x-0.4)**2+(y-0.06)**2+(z+0.01)**2)
+    r1 = 45*r-5
+    u = -(np.exp(-r1**2) + 2j/np.sqrt(np.pi)*dawsn(r1)) / (r+1)
+
+    boundary = 1-np.exp(-(0.6*x)**1000-(1.1*y)**1000-(1.2*z)**1000)
+
+    if animate:
+        pylab.imshow(np.real(boundary[M]))
+        pylab.show()
+        pylab.imshow(np.real(boundary[:,L]))
+        pylab.show()
+
+    wave_equation = WaveEquation(u, boundary, dx, dt=dx, decay=0)
+
+    u = wave_equation.ifft(wave_equation.v)[M]
+    if animate:
+        plots = [pylab.imshow(np.real(u), vmin=-0.05, vmax=0.05, extent=(-2, 2,-2,2))]
+        plots.extend(pylab.plot(np.linspace(-2,2,M), np.real(u[L])))
+        plots.extend(pylab.plot(np.linspace(-2,2,M), np.imag(u[L])))
+
+    left = []
+    right = []
+
+    def step(frame):
+        wave_equation.step()
+        u = wave_equation.ifft(wave_equation.v)[M]
+        left.append(np.real(u[L, L-8]))
+        right.append(np.real(u[L, L+7]))
+        if frame == 0:
+            print("t={}, saving to /tmp/...".format(wave_equation.t))
+            np.save("/tmp/left.npy", np.array(left, dtype=float))
+            np.save("/tmp/right.npy", np.array(right, dtype=float))
+        return u
+
+    def update(frame):
+        u = step(frame)
+        plots[0].set_data(np.real(u))
+        plots[1].set_ydata(np.real(u[L]))
+        plots[2].set_ydata(np.imag(u[L]))
+        return plots
+
+    if animate:
+        FuncAnimation(pylab.gcf(), update, frames=range(100), init_func=lambda: plots, blit=True, repeat=True, interval=20)
+        pylab.show()
+
+        pylab.plot(left)
+        pylab.show()
+
+        pylab.plot(right)
+        pylab.show()
+    else:
+        print("Calculating room reverb. Press Ctrl+C to stop collecting the impulse response.")
+        while True:
+            for i in range(100):
+                step(i)
+
+
 if __name__ == '__main__':
     # animated_string()
     # animated_membrane()
     # animated_room()
-    animated_point_source_in_room()
+    # animated_point_source_in_room()
     # animated_point_source_on_string()
+
+    room_reverb()
