@@ -1,7 +1,7 @@
 import pylab
 import numpy as np
 from matplotlib.animation import FuncAnimation
-from wave_equation import WaveEquation
+from wave_equation import WaveEquation, TriangleWaveEquation
 
 
 def animated_string():
@@ -232,6 +232,18 @@ def room_reverb(animate=False):
                 step(i)
 
 
+def triangular_chiral_toroid_membrane():
+    x, y = TriangleWaveEquation.xy(256)
+
+    t = TriangleWaveEquation(np.exp(-1000*(x*x+y*y)), 0*x, decay=0)
+
+    for _ in range(222):
+        t.step()
+
+    pylab.tricontourf(x, y, t.numpy())
+    pylab.show()
+
+
 if __name__ == '__main__':
     # animated_string()
     # animated_membrane()
@@ -239,4 +251,6 @@ if __name__ == '__main__':
     # animated_point_source_in_room()
     # animated_point_source_on_string()
 
-    room_reverb()
+    # room_reverb()
+
+    triangular_chiral_toroid_membrane()
