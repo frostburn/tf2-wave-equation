@@ -233,7 +233,7 @@ def room_reverb(animate=False):
 
 
 def triangular_chiral_toroid_membrane():
-    x, y = TriangleWaveEquation.xy(256)
+    x, y = TriangleWaveEquation.xy(512)
 
     t = TriangleWaveEquation(np.exp(-1000*(x*x+y*y)), 0*x, decay=0)
 
@@ -244,13 +244,30 @@ def triangular_chiral_toroid_membrane():
     pylab.show()
 
 
+def profile_in_2D():
+    x = np.linspace(-4, 4, 512)
+    dx = x[1] - x[0]
+    x, y = np.meshgrid(x, x, indexing='ij')
+
+    w = WaveEquation(np.exp(-100*(x*x+y*y)), 0*x, dx)
+
+    for _ in range(20):
+        pylab.plot(w.numpy()[256, 256:])
+        for _ in range(12):
+            w.step()
+    a = np.linspace(0, 4, 256)
+    pylab.plot(0.1*(a+0.01)**-0.5)
+    pylab.plot(-0.05*(a+0.01)**-0.5)
+    pylab.ylim(-0.12, 0.22)
+    pylab.show()
+
+
 if __name__ == '__main__':
     # animated_string()
     # animated_membrane()
     # animated_room()
     # animated_point_source_in_room()
     # animated_point_source_on_string()
-
     # room_reverb()
-
-    triangular_chiral_toroid_membrane()
+    # triangular_chiral_toroid_membrane()
+    profile_in_2D()

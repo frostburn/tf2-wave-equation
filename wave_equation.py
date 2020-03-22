@@ -2,26 +2,27 @@ import numpy as np
 import tensorflow as tf
 
 
-class WaveEquation(object):
-    def __init__(self, exitation, boundary, dx, dt=None, decay=1e-5, dispersion=0.0, brightness=0.0):
-        if exitation.shape != boundary.shape:
-            raise ValueError("Incompatible exitation and boundary shapes")
+class WaveEquationBase(object):
+    def __init__(self, shape, dx, dt=None, decay=0.0, dispersion=0.0, brightness=0.0):
         self.dx = dx
         self.dt = dt or dx
         self.decay = decay
         self.dispersion = dispersion
+        self.brightness = brightness
         omega = []
-        for s in boundary.shape:
+        for s in shape:
             wave_numbers = np.arange(s)
             wave_numbers -= s * (2*wave_numbers > s)  # Deal with TensorFlow's uncentered FFT
             expected_span = 2*np.pi
             actual_span = s*dx
             omega.append(wave_numbers * expected_span / actual_span)
         self.omega = np.meshgrid(*omega, indexing='ij')
-        self.dims = len(boundary.shape)
+        self.dims = len(shape)
 
-        self.unpack_wave_numbers()
+    def unpack_wave_numbers(self):
+        pass
 
+    def calculate_kernel(self):
         if self.dims == 1:
             self.fft = tf.signal.fft
             self.ifft = tf.signal.ifft
@@ -34,10 +35,32 @@ class WaveEquation(object):
             self.fft = tf.signal.fft3d
             self.ifft = tf.signal.ifft3d
             omega2 = tf.constant(self.omega_x**2 + self.omega_y**2 + self.omega_z**2, 'complex128')
-        gyre = 1j * omega2**(0.5 + dispersion)
-        dampener = -decay * omega2**(1.0 - brightness)
+        gyre = 1j * omega2**(0.5 + self.dispersion)
+        dampener = -self.decay * omega2**(1.0 - self.brightness)
         self.kernel = tf.exp(self.dt * (gyre + dampener))
 
+    def unpack_wave_numbers(self):
+        if self.dims == 1:
+            self.omega_x = self.omega[0]
+        elif self.dims == 2:
+            self.omega_x = self.omega[0]
+            self.omega_y = self.omega[1]
+        elif self.dims == 3:
+            self.omega_x = self.omega[0]
+            self.omega_y = self.omega[1]
+            self.omega_z = self.omega[2]
+
+
+class WaveEquation(WaveEquationBase):
+    def __init__(self, exitation, boundary, *args, **kwargs):
+        if exitation.shape != boundary.shape:
+            raise ValueError("Incompatible exitation and boundary shapes")
+        super().__init__(exitation.shape, *args, **kwargs)
+        self.unpack_wave_numbers()
+        self.calculate_kernel()
+        self.setup_integration(exitation, boundary)
+
+    def setup_integration(self, exitation, boundary):
         self.t = 0.0
         u = tf.constant(exitation, 'complex128')
         self.boundary = tf.constant(boundary, 'complex128')
@@ -55,18 +78,6 @@ class WaveEquation(object):
             return v
 
         self.integrator = tf.function(integrator)
-
-
-    def unpack_wave_numbers(self):
-        if self.dims == 1:
-            self.omega_x = self.omega[0]
-        elif self.dims == 2:
-            self.omega_x = self.omega[0]
-            self.omega_y = self.omega[1]
-        elif self.dims == 3:
-            self.omega_x = self.omega[0]
-            self.omega_y = self.omega[1]
-            self.omega_z = self.omega[2]
 
     def step(self):
         self.v = self.integrator(self.v)
