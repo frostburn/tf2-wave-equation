@@ -2,6 +2,7 @@ import pylab
 import numpy as np
 from matplotlib.animation import FuncAnimation
 from wave_equation import WaveEquation, TriangleWaveEquation
+import shapes
 
 
 def animated_string():
@@ -262,6 +263,66 @@ def profile_in_2D():
     pylab.show()
 
 
+def hollow_cube():
+    N = 128
+    M = N//2
+    x = np.linspace(-1.2, 1.2, N)
+    dx = x[1] - x[0]
+    x, y, z = np.meshgrid(x, x, x, indexing='ij')
+
+    cube = shapes.cube(x, y, z)
+
+    boundary = np.logical_or(cube > 1, cube < 0.7)
+
+    u = np.exp(-1000*(x**2 + (y-0.95)**2 + (z-0.2)**2))
+    u *= (1-boundary)
+
+    wave_equation = WaveEquation(u, boundary, dx, dt=dx, decay=0)
+
+    u = wave_equation.numpy()
+    plots = [pylab.imshow(u[M], vmin=-0.04, vmax=0.04)]
+
+    def update(frame):
+        wave_equation.step()
+        print(wave_equation.t)
+        u = wave_equation.numpy()
+        plots[0].set_data(u[M])
+        return plots
+
+    FuncAnimation(pylab.gcf(), update, frames=range(100), init_func=lambda: plots, blit=True, repeat=True, interval=10)
+    pylab.show()
+
+
+def tetrahedron_scaffold():
+    N = 128
+    M = N // 2
+    x = np.linspace(-5, 5, N)
+    dx = x[1] - x[0]
+    x, y, z = np.meshgrid(x, x, x, indexing='ij')
+    boundary = np.logical_not(shapes.tetrahedron_scaffold(x, y, z, width=0.4))
+
+    pylab.imshow(boundary[M], extent=(-5,5,-5,5))
+    pylab.show()
+
+    u = np.exp(-100*(x**2 + (y-0.1)**2 + (z+1.6)**2))
+    u *= (1-boundary)
+
+    wave_equation = WaveEquation(u, boundary, dx, dt=dx, decay=0.0001)
+
+    u = wave_equation.numpy()
+    plots = [pylab.imshow(u[M], vmin=-0.02, vmax=0.02)]
+
+    def update(frame):
+        wave_equation.step()
+        print(wave_equation.t)
+        u = wave_equation.numpy()
+        plots[0].set_data(u[M])
+        return plots
+
+    FuncAnimation(pylab.gcf(), update, frames=range(100), init_func=lambda: plots, blit=True, repeat=True, interval=10)
+    pylab.show()
+
+
 if __name__ == '__main__':
     # animated_string()
     # animated_membrane()
@@ -270,4 +331,7 @@ if __name__ == '__main__':
     # animated_point_source_on_string()
     # room_reverb()
     # triangular_chiral_toroid_membrane()
-    profile_in_2D()
+    # profile_in_2D()
+    hollow_cube()
+    # tetrahedron_scaffold()
+
