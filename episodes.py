@@ -112,7 +112,7 @@ def animated_point_source_in_room():
 
     wave_equation = WaveEquation(u, boundary, dx, dt=dx, decay=0)
 
-    u = wave_equation.ifft(wave_equation.v)[:,:,M]
+    u = wave_equation.u[:,:,M]
     plots = [pylab.imshow(np.real(u), vmin=-0.05, vmax=0.05, extent=(-2, 2,-2,2))]
     plots.extend(pylab.plot(np.linspace(-2,2,N), np.real(u[M])))
     plots.extend(pylab.plot(np.linspace(-2,2,N), np.imag(u[M])))
@@ -120,7 +120,7 @@ def animated_point_source_in_room():
     def update(frame):
         wave_equation.step()
         print(wave_equation.t)
-        u = wave_equation.ifft(wave_equation.v)[:,:,M]
+        u = wave_equation.u[:,:,M]
         plots[0].set_data(np.real(u))
         plots[1].set_ydata(np.real(u[M]))
         plots[2].set_ydata(np.imag(u[M]))
@@ -190,7 +190,7 @@ def room_reverb(animate=False):
 
     wave_equation = WaveEquation(u, boundary, dx, dt=dx, decay=0)
 
-    u = wave_equation.ifft(wave_equation.v)[M]
+    u = wave_equation.u[M]
     if animate:
         plots = [pylab.imshow(np.real(u), vmin=-0.05, vmax=0.05, extent=(-2, 2,-2,2))]
         plots.extend(pylab.plot(np.linspace(-2,2,M), np.real(u[L])))
@@ -201,7 +201,7 @@ def room_reverb(animate=False):
 
     def step(frame):
         wave_equation.step()
-        u = wave_equation.ifft(wave_equation.v)[M]
+        u = wave_equation.u[M]
         left.append(np.real(u[L, L-8]))
         right.append(np.real(u[L, L+7]))
         if frame == 0:

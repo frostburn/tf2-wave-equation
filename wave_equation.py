@@ -62,29 +62,33 @@ class WaveEquation(WaveEquationBase):
 
     def setup_integration(self, exitation, boundary):
         self.t = 0.0
-        u = tf.constant(exitation, 'complex128')
+        self.u = tf.constant(exitation, 'complex128')
         self.boundary = tf.constant(boundary, 'complex128')
         self.room = tf.cast(1 - tf.abs(self.boundary), 'complex128')
-        self.v = self.fft(u)
+        # TODO: Check if limiting the initial wave number is of any benefit
+        # self.v = self.fft(u)
+        # limit = min(self.omega_x.max(), self.omega_y.max())
+        # self.v *= (self.omega_x**2 + self.omega_y**2 <= limit**2)
 
-        def integrator(v):
+        def integrator(u):
+            v = self.fft(u)
             v *= self.kernel
 
             positive_u = self.ifft(v)
             negative_u = tf.math.conj(positive_u)
 
-            v = self.fft(positive_u * self.room - negative_u * self.boundary)
+            u = positive_u * self.room - negative_u * self.boundary
 
-            return v
+            return u
 
         self.integrator = tf.function(integrator)
 
     def step(self):
-        self.v = self.integrator(self.v)
+        self.u = self.integrator(self.u)
         self.t += self.dt
 
     def numpy(self):
-        return tf.cast(self.ifft(self.v), 'float64').numpy()
+        return tf.cast(self.u, 'float64').numpy()
 
 
 class TriangleWaveEquation(WaveEquation):
