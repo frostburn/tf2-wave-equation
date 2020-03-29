@@ -55,6 +55,7 @@ class WaveEquation(WaveEquationBase):
     def __init__(self, exitation, boundary, *args, **kwargs):
         if exitation.shape != boundary.shape:
             raise ValueError("Incompatible exitation and boundary shapes")
+        self.continuous_exitation = kwargs.pop('continuous_exitation', None)
         super().__init__(exitation.shape, *args, **kwargs)
         self.unpack_wave_numbers()
         self.calculate_kernel()
@@ -85,6 +86,8 @@ class WaveEquation(WaveEquationBase):
 
     def step(self):
         self.u = self.integrator(self.u)
+        if self.continuous_exitation is not None:
+            self.u += self.dt * self.continuous_exitation(self.t)
         self.t += self.dt
 
     def numpy(self):
@@ -96,6 +99,8 @@ class TriangleWaveEquation(WaveEquation):
     Wave equation on an equilateral triangle with chiral boundary conditions.
     """
     def __init__(self, exitation, boundary, dx=None, *args, **kwargs):
+        if 'continuous_exitation' in kwargs:
+            raise NotImplementedError("Continuous exitation reshaping not implemented yet")
         N = int(0.5 * np.sqrt(8*len(exitation) + 1) - 0.5)
         if dx is None:
             dx = 2 / N

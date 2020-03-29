@@ -323,6 +323,35 @@ def tetrahedron_scaffold():
     pylab.show()
 
 
+def pentagon_resonances():
+    N = 256
+    x = np.arange(-1, 1, 2/N)
+    dx = x[1] - x[0]
+    x, y = np.meshgrid(x, x, indexing='ij')
+    boundary = shapes.equilateral(x, y, 5) > 0.75
+
+    u = 0*x
+
+    source_shape = np.exp(-150*((x-0.1)**2 + (y-0.3)**2))
+    source_shape *= 1 - boundary
+    def vibrate(t):
+        return source_shape * np.sin(t + 0.05*t*t) * (1 + np.random.randn(*x.shape) * 0.1)
+
+    wave_equation = WaveEquation(u, boundary, dx, decay=1e-3, continuous_exitation=vibrate)
+
+    plots = [pylab.imshow(wave_equation.numpy(), vmin=-0.1, vmax=0.1)]
+
+    def update(frame):
+        for _ in range(3):
+            wave_equation.step()
+        print(wave_equation.t)
+        plots[0].set_data(wave_equation.numpy())
+        return plots
+
+    FuncAnimation(pylab.gcf(), update, frames=range(100), init_func=lambda: plots, blit=True, repeat=True, interval=10)
+    pylab.show()
+
+
 if __name__ == '__main__':
     # animated_string()
     # animated_membrane()
@@ -332,6 +361,7 @@ if __name__ == '__main__':
     # room_reverb()
     # triangular_chiral_toroid_membrane()
     # profile_in_2D()
-    hollow_cube()
+    # hollow_cube()
     # tetrahedron_scaffold()
 
+    pentagon_resonances()

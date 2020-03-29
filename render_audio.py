@@ -10,8 +10,7 @@ from util import write_audio
 from wave_equation import WaveEquation
 
 
-def process_triangle_drum(args, integrator_params):
-    N = args.grid_width
+def triangle(N):
     x = np.arange(-1, 1, 2/N)
     dx = x[1] - x[0]
     x, y = np.meshgrid(x, x, indexing='ij')
@@ -21,9 +20,15 @@ def process_triangle_drum(args, integrator_params):
     s = np.sin(theta)
     x, y = x*c + y*s - 0.1, y*c - x*s + 0.1
 
-    triangle = shapes.equilateral(x, y, 3)
+    triangle_ = shapes.equilateral(x, y, 3)
 
-    boundary = (triangle > 0.52)
+    return x, y, dx, (triangle_ > 0.52)
+
+
+def process_triangle_drum(args, integrator_params):
+    N = args.grid_width
+    x, y, dx, boundary = triangle(N)
+
     ex_x, ex_y = np.random.randn(2) * args.variation
     sharpness = args.sharpness * np.exp(np.random.randn() * args.variation)
 
@@ -46,8 +51,35 @@ def process_triangle_drum(args, integrator_params):
     write_audio(args.outfile, data, sample_rate=args.sample_rate)
 
 
+def triangle_resonances(args, integrator_params):
+    N = args.grid_width
+    x, y, dx, boundary = triangle(N)
+
+    def vibrate(t):
+        x_ = args.variation * (1 + np.cos(0.01*t))
+        y_ = args.variation * np.sin(0.01 * t)
+        return np.exp(-args.sharpness**2 * (x_**2 + y_**2)) * np.sin(0.5*t + 0.005*t*t) * (1-boundary)
+
+    integrator_params['continuous_exitation'] = vibrate
+    integrator = WaveEquation(0*x, boundary, dx, **integrator_params)
+
+    left_channel = []
+    right_channel = []
+
+    for i in progressbar.progressbar(range(int(args.sample_rate * args.duration))):
+        left_channel.append(np.real(integrator.u[int(N*0.4), N//2].numpy()))
+        right_channel.append(np.real(integrator.u[int(N*0.7), N//2].numpy()))
+        integrator.step()
+
+    data = np.array([left_channel, right_channel])
+    data /= abs(data).max()
+
+    write_audio(args.outfile, data, sample_rate=args.sample_rate)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Render audio samples')
+    parser.add_argument('episode', choices=['drum', 'resonance'])
     parser.add_argument('outfile', type=str, help='Output file name')
     parser.add_argument('--grid-width', type=int, help='Number of grid points along a grid edge', default=128)
     parser.add_argument('--sample-rate', type=int, help='Sampling rate of the resulting audio file', default=48000)
@@ -65,4 +97,7 @@ if __name__ == '__main__':
         'dispersion': args.dispersion,
     }
 
-    process_triangle_drum(args, integrator_params)
+    if args.episode == 'drum':
+        process_triangle_drum(args, integrator_params)
+    elif args.episode == 'resonance':
+        triangle_resonances(args, integrator_params)
